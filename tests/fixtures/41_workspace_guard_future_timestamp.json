@@ -1,0 +1,69 @@
+{
+  "input": {
+    "pane_id": "w1:p1",
+    "now": 1000,
+    "config": {
+      "restore_workspace": "ask",
+      "restore_tab": "ask",
+      "loop_guard_seconds": 5
+    },
+    "state": {
+      "workspaces": {
+        "w1": {
+          "workspace_id": "w1",
+          "label": "Example",
+          "index": 0,
+          "focused": true,
+          "active_tab_id": "w1:t1"
+        }
+      },
+      "tabs": {
+        "w1:t1": {
+          "tab_id": "w1:t1",
+          "workspace_id": "w1",
+          "label": "custom",
+          "number": 1,
+          "index": 0,
+          "focused": true
+        }
+      },
+      "panes": {
+        "w1:p1": {
+          "pane_id": "w1:p1",
+          "workspace_id": "w1",
+          "tab_id": "w1:t1",
+          "cwd": "/tmp",
+          "foreground_cwd": "/tmp/next"
+        }
+      },
+      "handled": {},
+      "restored": {
+        "w1:p1": 1001
+      },
+      "closed": {
+        "workspaces": {},
+        "tabs": {},
+        "panes": {}
+      }
+    },
+    "live": {
+      "workspaces": [],
+      "tabs": [],
+      "panes": []
+    }
+  },
+  "expect": {
+    "action": "loop_guard",
+    "reason": "rapid_exit",
+    "kind": "workspace",
+    "pane_id": "w1:p1",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "label": "Example",
+    "tab_label": "custom",
+    "cwd": "/tmp/next",
+    "index": 0,
+    "focused": true,
+    "mode": "ask"
+  }
+}

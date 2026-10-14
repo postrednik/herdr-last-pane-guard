@@ -1,0 +1,75 @@
+{
+  "input": {
+    "pane_id": "w1:p1",
+    "now": 1000,
+    "config": {
+      "restore_workspace": "off",
+      "restore_tab": "ask",
+      "loop_guard_seconds": 5
+    },
+    "state": {
+      "workspaces": {
+        "w1": {
+          "workspace_id": "w1",
+          "label": "Example",
+          "index": 0,
+          "focused": true,
+          "active_tab_id": "w1:t1"
+        }
+      },
+      "tabs": {
+        "w1:t1": {
+          "tab_id": "w1:t1",
+          "workspace_id": "w1",
+          "label": "custom",
+          "number": 1,
+          "index": 0,
+          "focused": true
+        }
+      },
+      "panes": {
+        "w1:p1": {
+          "pane_id": "w1:p1",
+          "workspace_id": "w1",
+          "tab_id": "w1:t1",
+          "cwd": "/tmp",
+          "foreground_cwd": "/tmp/next"
+        }
+      },
+      "handled": {},
+      "restored": {},
+      "closed": {
+        "workspaces": {},
+        "tabs": {},
+        "panes": {}
+      }
+    },
+    "live": {
+      "workspaces": [
+        {
+          "workspace_id": "w1",
+          "label": "Example",
+          "index": 0,
+          "focused": true,
+          "active_tab_id": "w1:t1"
+        }
+      ],
+      "tabs": [],
+      "panes": []
+    }
+  },
+  "expect": {
+    "action": "restore",
+    "reason": "shell_exit",
+    "kind": "tab",
+    "pane_id": "w1:p1",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "label": "custom",
+    "tab_label": "custom",
+    "cwd": "/tmp/next",
+    "index": 0,
+    "focused": true,
+    "mode": "ask"
+  }
+}

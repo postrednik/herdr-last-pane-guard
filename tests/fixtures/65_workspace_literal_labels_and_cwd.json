@@ -1,0 +1,67 @@
+{
+  "input": {
+    "pane_id": "w1:p1",
+    "now": 1000,
+    "config": {
+      "restore_workspace": "ask",
+      "restore_tab": "ask",
+      "loop_guard_seconds": 5
+    },
+    "state": {
+      "workspaces": {
+        "w1": {
+          "workspace_id": "w1",
+          "label": "Desk \"quotes\" O'Brien Ω $(printf ignored) `literal`",
+          "index": 0,
+          "focused": true,
+          "active_tab_id": "w1:t1"
+        }
+      },
+      "tabs": {
+        "w1:t1": {
+          "tab_id": "w1:t1",
+          "workspace_id": "w1",
+          "label": "Tab \"résumé\" 雪\nsecond line",
+          "number": 1,
+          "index": 0,
+          "focused": true
+        }
+      },
+      "panes": {
+        "w1:p1": {
+          "pane_id": "w1:p1",
+          "workspace_id": "w1",
+          "tab_id": "w1:t1",
+          "cwd": "/tmp",
+          "foreground_cwd": "/tmp/space dir/\"quoted\"/O'Brien/雪/$(printf ignored)/`literal`"
+        }
+      },
+      "handled": {},
+      "restored": {},
+      "closed": {
+        "workspaces": {},
+        "tabs": {},
+        "panes": {}
+      }
+    },
+    "live": {
+      "workspaces": [],
+      "tabs": [],
+      "panes": []
+    }
+  },
+  "expect": {
+    "action": "restore",
+    "reason": "shell_exit",
+    "kind": "workspace",
+    "pane_id": "w1:p1",
+    "workspace_id": "w1",
+    "tab_id": "w1:t1",
+    "label": "Desk \"quotes\" O'Brien Ω $(printf ignored) `literal`",
+    "tab_label": "Tab \"résumé\" 雪\nsecond line",
+    "cwd": "/tmp/space dir/\"quoted\"/O'Brien/雪/$(printf ignored)/`literal`",
+    "index": 0,
+    "focused": true,
+    "mode": "ask"
+  }
+}
