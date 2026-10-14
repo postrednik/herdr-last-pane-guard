@@ -18,9 +18,9 @@ load_recovery() {
 main() {
     local answer kind label id ws pane
     lpg_init || return $?
-    [ -n "${LPG_RECOVERY_TOKEN:-}" ] && [ "${LPG_SESSION_KEY:-}" = "$SESSION_KEY" ] || {
-        lpg_log 'confirmation has no valid recovery context'; return 1;
-    }
+    if [ -z "${LPG_RECOVERY_TOKEN:-}" ] || [ "${LPG_SESSION_KEY:-}" != "$SESSION_KEY" ]; then
+        lpg_log 'confirmation has no valid recovery context'; return 1
+    fi
     lpg_lock || return $?
     if ! load_recovery; then return 0; fi
     lpg_unlock || return 1
