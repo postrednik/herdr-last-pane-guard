@@ -10,6 +10,14 @@ or asks whether you want to keep it.
 Intentional `workspace close`, `tab close`, and `pane close` API operations are
 not restored. Detection does not depend on the order of close events.
 
+## Native development candidate
+
+A Rust rewrite is under development alongside the released Bash implementation.
+The root manifest still runs Bash; building Rust does not switch an installation.
+See [native development](docs/native-development.md) and
+[Rust practices](docs/rust-practices.md) for isolated builds and checks.
+This is not a native release or a claim of Windows support.
+
 ## Requirements
 
 - Herdr **0.9.4** or later (0.9.4 is the tested baseline).

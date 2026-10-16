@@ -1,7 +1,18 @@
 # Contributing
 
-Keep changes small and preserve Bash 3.2 compatibility. The runtime depends on
-`jq` and standard Unix tools; there is no build step.
+Keep changes small. The released Bash runtime must preserve Bash 3.2 compatibility
+and depends on `jq` and standard Unix tools, with no build step.
+
+The native candidate is separate. Follow [Rust practices](docs/rust-practices.md)
+and [native development](docs/native-development.md). Use the pinned toolchain,
+locked dependencies, rustfmt, Clippy with denied warnings, tests and RustSec audit:
+
+```sh
+sh scripts/check-rust.sh
+```
+
+Do not replace the active manifest or remove the Bash reference implementation
+before native compatibility and isolated installation tests pass.
 
 Run before submitting a change:
 
