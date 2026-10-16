@@ -1,0 +1,31 @@
+[package]
+name = "last-pane-guard"
+version = "0.2.0-dev"
+edition = "2021"
+rust-version = "1.99.1"
+license = "MIT"
+description = "Restore Herdr workspaces and tabs lost when their last shell exits."
+publish = false
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.190"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+
+[profile.release]
+lto = "thin"
+strip = true
