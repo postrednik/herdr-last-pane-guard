@@ -301,6 +301,9 @@ impl Drop for Server {
 }
 
 fn serve(mut stream: UnixStream, model: &Arc<Mutex<Model>>, stopping: &AtomicBool) {
+    // BSD-derived systems let an accepted socket inherit the listener's nonblocking
+    // mode, which would make an early read fail instead of honoring the timeout.
+    stream.set_nonblocking(false).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(1)))
         .unwrap();
