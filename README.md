@@ -16,8 +16,9 @@ not restored. Detection does not depend on the order of close events.
 - macOS. It is the only platform declared in the manifest because it is the
   only one tested with a real Herdr server.
 - A Rust toolchain with `cargo`, used once to build the plugin from source during
-  installation. `rust-toolchain.toml` selects Rust 1.99.1; with rustup, cargo
-  downloads that toolchain on first use if it is missing.
+  installation. `rust-toolchain.toml` selects Rust 1.99.1, the minimum version.
+  If your rustup does not install it automatically, run
+  `rustup toolchain install 1.99.1` first.
 
 The plugin is a single native executable. It talks to Herdr over its local socket
 and needs no shell, `jq`, `nc` or background service at runtime.
@@ -32,8 +33,10 @@ herdr plugin install postrednik/herdr-last-pane-guard
 herdr plugin action invoke postrednik.last-pane-guard.refresh
 ```
 
-Installation runs `cargo build --locked --release` in Herdr's installation
-directory. A build failure aborts the installation. The refresh action
+Installation runs `cargo build --locked --release --target-dir target` in
+Herdr's installation directory. A build failure aborts the installation. Do not
+set a cross-compilation target (`CARGO_BUILD_TARGET` or `build.target`) for
+this build: hooks run `target/release/last-pane-guard`. The refresh action
 initializes the current session immediately. Herdr does not
 run startup hooks when a plugin is installed, linked, or enabled. Run the action
 in each already-running session that should be protected. Future server starts
@@ -42,7 +45,7 @@ and live handoffs initialize through the startup hook automatically.
 For local development, from a checkout (linking does not build):
 
 ```sh
-cargo build --locked --release
+cargo build --locked --release --target-dir target
 herdr plugin link "$PWD"
 herdr plugin action invoke postrednik.last-pane-guard.refresh
 ```

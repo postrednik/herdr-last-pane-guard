@@ -28,9 +28,9 @@ cargo audit
 
 The state tests also require the POSIX cksum utility, a test-only dependency.
 Install cargo-audit separately before running `sh scripts/check-rust.sh`; the
-script does not install or silently skip missing tools. The workflow will remain
-inactive until eligible isolated self-hosted runners are configured. There is no
-GitHub-hosted fallback.
+script does not install or silently skip missing tools. The repository workflow
+is disabled and still describes the 0.1.0 checks; it is not part of 0.2.0
+verification. Run the checks locally.
 
 See [Rust practices](rust-practices.md) for error, unsafe, MSRV and dependency
 review policy. Tests using mock sockets and PTYs do not establish real Herdr

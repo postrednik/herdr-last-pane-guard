@@ -64,9 +64,9 @@ impl Client {
         self.check_generation()?;
         platform::write_request(&mut stream, &request, deadline)?;
         let response = platform::read_response(&mut stream, deadline, MAX_RESPONSE_BYTES)?;
-        let result = decode_response(&response, &id);
-        remaining(deadline)?;
-        result
+        // A complete reply is authoritative: discarding it after a late deadline or
+        // signal would hide a create that already happened.
+        decode_response(&response, &id)
     }
 
     #[cfg(not(any(unix, windows)))]

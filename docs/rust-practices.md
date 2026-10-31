@@ -53,7 +53,7 @@ cargo audit
 The final audit command requires `cargo-audit` to be installed separately. A
 missing audit executable or unavailable advisory database is a failed or skipped
 check, not a successful security review. The check runner must not install tools
-implicitly. CI uses preprovisioned tools and the same checks.
+implicitly.
 
 Clippy's default lint set is enforced. Selected pedantic numeric-conversion lints
 are enabled to catch truncation and sign mistakes at native I/O boundaries. Do not

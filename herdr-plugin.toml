@@ -7,7 +7,7 @@ author = "Rostislav Postrednik"
 platforms = ["macos"]
 
 [[build]]
-command = ["cargo", "build", "--locked", "--release"]
+command = ["cargo", "build", "--locked", "--release", "--target-dir", "target"]
 
 [[startup]]
 command = ["target/release/last-pane-guard", "refresh"]
