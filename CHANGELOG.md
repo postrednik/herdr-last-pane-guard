@@ -7,14 +7,15 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-11-01
+## [0.2.0] - 2026-10-31
 
 ### Changed
 
 - The plugin is now a native Rust executable built from source during
   installation. Bash, `jq` and `nc` are no longer runtime requirements.
 - Herdr API requests use the local socket directly instead of the Herdr CLI.
-- The manifest declares macOS only, the platform tested with a real Herdr server.
+- The manifest declares macOS and Linux, the platforms tested with a real Herdr
+  server.
 
 ### Added
 
@@ -27,7 +28,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Plugin id, configuration and state version 1 are unchanged; existing state and
   recovery history carry over.
-- Windows source code is present but has never been compiled or run on Windows.
+- Windows source code cross-compiles for the GNU target but has never run on
+  Windows.
 
 ## [0.1.0] - 2026-10-14
 

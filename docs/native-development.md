@@ -5,10 +5,11 @@ and `confirm` subcommands. Herdr builds it during `plugin install` through the
 manifest's `[[build]]` command; `plugin link` does not build, so build a linked
 checkout yourself after every change.
 
-The manifest declares only macOS, the platform tested against a real Herdr
-server. Windows source support is present but unverified: a named-pipe client
-with overlapped I/O and server process checks, and console key input for
-confirmation. It has not been compiled or run on Windows. It needs only the
+The manifest declares macOS and Linux, the platforms tested against a real
+Herdr server (macOS arm64, Linux x86_64). Windows source support is present but
+unverified: a named-pipe client with overlapped I/O and server process checks,
+and console key input for confirmation. It cross-compiles for
+`x86_64-pc-windows-gnu` with Clippy clean, but has never run on Windows. It needs only the
 standard library and kernel32, so the GNU target is sufficient. Other non-Unix
 platforms fail explicitly rather than running without protection.
 

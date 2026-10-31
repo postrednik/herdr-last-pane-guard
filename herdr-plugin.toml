@@ -4,7 +4,7 @@ version = "0.2.0"
 min_herdr_version = "0.9.4"
 description = "Restore workspaces and tabs lost when their last shell exits."
 author = "Rostislav Postrednik"
-platforms = ["macos"]
+platforms = ["macos", "linux"]
 
 [[build]]
 command = ["cargo", "build", "--locked", "--release", "--target-dir", "target"]

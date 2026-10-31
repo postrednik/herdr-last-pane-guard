@@ -13,8 +13,8 @@ not restored. Detection does not depend on the order of close events.
 ## Requirements
 
 - Herdr **0.9.4** or later (0.9.4 is the tested baseline).
-- macOS. It is the only platform declared in the manifest because it is the
-  only one tested with a real Herdr server.
+- macOS or Linux, the platforms declared in the manifest. Both are tested with
+  a real Herdr server (macOS arm64, Linux x86_64).
 - A Rust toolchain with `cargo`, used once to build the plugin from source during
   installation. `rust-toolchain.toml` selects Rust 1.99.1, the minimum version.
   If your rustup does not install it automatically, run
@@ -23,8 +23,8 @@ not restored. Detection does not depend on the order of close events.
 The plugin is a single native executable. It talks to Herdr over its local socket
 and needs no shell, `jq`, `nc` or background service at runtime.
 
-Linux and Windows are not declared until they pass the same live tests. The
-Windows code paths have never been compiled or run on Windows.
+Windows is not declared. Its code paths cross-compile for
+`x86_64-pc-windows-gnu` and pass Clippy, but have never run on Windows.
 
 ## Install
 
