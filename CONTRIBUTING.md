@@ -1,30 +1,21 @@
 # Contributing
 
-Keep changes small. The released Bash runtime must preserve Bash 3.2 compatibility
-and depends on `jq` and standard Unix tools, with no build step.
+Keep changes small. The plugin is a single native Rust executable. Follow
+[Rust practices](docs/rust-practices.md) and
+[native development](docs/native-development.md). Use the pinned toolchain,
+locked dependencies, rustfmt, Clippy with denied warnings, tests and RustSec audit.
 
-The native candidate is separate. Follow [Rust practices](docs/rust-practices.md)
-and [native development](docs/native-development.md). Use the pinned toolchain,
-locked dependencies, rustfmt, Clippy with denied warnings, tests and RustSec audit:
+Run before submitting a change:
 
 ```sh
 sh scripts/check-rust.sh
 ```
 
-Do not replace the active manifest or remove the Bash reference implementation
-before native compatibility and isolated installation tests pass.
-
-Run before submitting a change:
-
-```sh
-/bin/bash tests/run.sh
-shellcheck -x bin/*.sh tests/*.sh
-```
-
 Add fixtures for new decision paths and mocked runtime regressions. Treat
-configuration, labels, directories and event payloads as data, never shell code.
+configuration, labels, directories and event payloads as data, never code.
 Do not infer closure from an API error other than the documented not-found code.
-Preserve session isolation, atomic writes, idempotence and the loop guard.
+Preserve session isolation, atomic writes, idempotence, the loop guard and
+compatibility with existing version 1 state.
 
 Live tests must use only disposable workspaces you created. Linking enables a
 plugin user-wide, so unlink it between unverified iterations. Never restart a

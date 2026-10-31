@@ -1,19 +1,22 @@
 id = "postrednik.last-pane-guard"
 name = "Last Pane Guard"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.9.4"
 description = "Restore workspaces and tabs lost when their last shell exits."
 author = "Rostislav Postrednik"
-platforms = ["macos", "linux"]
+platforms = ["macos"]
+
+[[build]]
+command = ["cargo", "build", "--locked", "--release"]
 
 [[startup]]
-command = ["bash", "bin/guard.sh", "refresh"]
+command = ["target/release/last-pane-guard", "refresh"]
 
 [[actions]]
 id = "refresh"
 title = "Initialize or refresh Last Pane Guard"
 contexts = ["global"]
-command = ["bash", "bin/guard.sh", "refresh"]
+command = ["target/release/last-pane-guard", "refresh"]
 
 [[panes]]
 id = "confirm"
@@ -21,68 +24,68 @@ title = "Last Pane Guard"
 placement = "popup"
 width = "80%"
 height = 8
-command = ["bash", "bin/confirm.sh"]
+command = ["target/release/last-pane-guard", "confirm"]
 
 [[events]]
 on = "pane.exited"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.created"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.renamed"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.moved"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.reordered"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.focused"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "workspace.closed"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "tab.created"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "tab.renamed"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "tab.moved"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "tab.focused"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "tab.closed"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "pane.created"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "pane.focused"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "pane.moved"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]
 
 [[events]]
 on = "pane.closed"
-command = ["bash", "bin/guard.sh", "event"]
+command = ["target/release/last-pane-guard", "event"]

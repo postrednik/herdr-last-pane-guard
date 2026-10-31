@@ -1,7 +1,7 @@
 # Rust implementation practices
 
-The native implementation is developed alongside the Bash release. Its presence
-is not a claim of released native support or a completed platform validation.
+The plugin is implemented in Rust. Supported platforms are those declared in the
+manifest after live validation; source support alone is not platform support.
 
 ## Design and errors
 

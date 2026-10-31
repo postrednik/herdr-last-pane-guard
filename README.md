@@ -10,26 +10,20 @@ or asks whether you want to keep it.
 Intentional `workspace close`, `tab close`, and `pane close` API operations are
 not restored. Detection does not depend on the order of close events.
 
-## Native development candidate
-
-A Rust rewrite is under development alongside the released Bash implementation.
-The root manifest still runs Bash; building Rust does not switch an installation.
-See [native development](docs/native-development.md) and
-[Rust practices](docs/rust-practices.md) for isolated builds and checks.
-This is not a native release or a claim of Windows support.
-
 ## Requirements
 
 - Herdr **0.9.4** or later (0.9.4 is the tested baseline).
-- Bash 3.2 or later and `jq` 1.6 or later.
-- macOS or Linux with standard POSIX command-line tools.
-- Optional `nc` with Unix socket support (`-U`) for restoring list position.
-  Without it, the new shell is kept but its position may differ.
+- macOS. It is the only platform declared in the manifest because it is the
+  only one tested with a real Herdr server.
+- A Rust toolchain with `cargo`, used once to build the plugin from source during
+  installation. `rust-toolchain.toml` selects Rust 1.99.1; with rustup, cargo
+  downloads that toolchain on first use if it is missing.
 
-macOS 15 and later include `jq`. On Linux, install `bash` and `jq` with your
-package manager. There is no build step, background service, or extra runtime.
-Windows is not supported: the plugin relies on Bash, Unix sockets and POSIX
-filesystem behavior.
+The plugin is a single native executable. It talks to Herdr over its local socket
+and needs no shell, `jq`, `nc` or background service at runtime.
+
+Linux and Windows are not declared until they pass the same live tests. The
+Windows code paths have never been compiled or run on Windows.
 
 ## Install
 
@@ -38,20 +32,31 @@ herdr plugin install postrednik/herdr-last-pane-guard
 herdr plugin action invoke postrednik.last-pane-guard.refresh
 ```
 
-The refresh action initializes the current session immediately. Herdr does not
+Installation runs `cargo build --locked --release` in Herdr's installation
+directory. A build failure aborts the installation. The refresh action
+initializes the current session immediately. Herdr does not
 run startup hooks when a plugin is installed, linked, or enabled. Run the action
 in each already-running session that should be protected. Future server starts
 and live handoffs initialize through the startup hook automatically.
 
-For local development, from a checkout:
+For local development, from a checkout (linking does not build):
 
 ```sh
+cargo build --locked --release
 herdr plugin link "$PWD"
 herdr plugin action invoke postrednik.last-pane-guard.refresh
 ```
 
+Rebuild after every source change; hooks run `target/release/last-pane-guard`.
 Plugins are user-wide. Linking or enabling one affects all running Herdr sessions.
 Do not test an unreviewed plugin against workspaces containing important work.
+
+## Upgrade from 0.1.0
+
+Version 0.2.0 replaces the Bash implementation with a native executable. The
+plugin id, configuration and per-session state format are unchanged, so existing
+snapshots and recovery history carry over. Install or update the plugin, then
+run the refresh action in each running session.
 
 ## Configure
 
@@ -158,8 +163,8 @@ herdr plugin action invoke postrednik.last-pane-guard.refresh
 - **Loop guard:** fix the shell startup failure before retrying; do not disable
   protection just to repeat a failing shell indefinitely.
 - **UI busy:** the replacement was kept. Close it normally if unwanted.
-- **Position not restored:** verify that your `nc` supports `-U`; recovery still
-  provides a shell when reordering is unavailable.
+- **Position not restored:** the plugin log records why; recovery still keeps
+  the restored shell when reordering fails.
 - **Lock timeout:** inspect the session's state directory and `lock/owner` PID.
   Only remove a stale lock after verifying its owning process is no longer running.
 - **Invalid state or session collision:** recovery stops rather than overwriting
@@ -169,11 +174,12 @@ herdr plugin action invoke postrednik.last-pane-guard.refresh
 ## Development
 
 ```sh
-/bin/bash tests/run.sh
-shellcheck -x bin/*.sh tests/*.sh
+sh scripts/check-rust.sh
 ```
 
-Unit and mocked runtime tests need no running Herdr. Live acceptance tests must
+See [native development](docs/native-development.md) and
+[Rust practices](docs/rust-practices.md). Unit and mocked runtime tests need no
+running Herdr. Live acceptance tests must
 use disposable workspaces and explicitly cover shell exit versus intentional
 close, confirmation choices, rapid replacement exits, concurrent exits,
 configuration `off`, and server shutdown. TUI close shortcuts require a manual

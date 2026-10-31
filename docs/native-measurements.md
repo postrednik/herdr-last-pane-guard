@@ -35,7 +35,7 @@ speed of programming languages.
 
 ## Isolated live smoke coverage
 
-The staged native package also passed these real-server checks on Herdr 0.9.4:
+The 0.2.0-dev native candidate also passed these real-server checks on Herdr 0.9.4:
 
 - Workspace restoration after shell exit.
 - Immediate replacement-shell exit suppressed by the loop guard.

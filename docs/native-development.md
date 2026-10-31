@@ -1,12 +1,16 @@
 # Native development
 
-The Rust executable is an unreleased candidate. The root plugin manifest still
-runs the Bash implementation; building Rust does not replace an installed plugin.
-Windows source support is present but unverified: a named-pipe client with
-overlapped I/O and server process checks, and console key input for confirmation.
-It has not been compiled or run on Windows, and the plugin does not declare Windows.
-It needs only the standard library and kernel32, so the GNU target is sufficient.
-Other non-Unix platforms fail explicitly rather than running without protection.
+The plugin is one Rust executable, `last-pane-guard`, with `refresh`, `event`
+and `confirm` subcommands. Herdr builds it during `plugin install` through the
+manifest's `[[build]]` command; `plugin link` does not build, so build a linked
+checkout yourself after every change.
+
+The manifest declares only macOS, the platform tested against a real Herdr
+server. Windows source support is present but unverified: a named-pipe client
+with overlapped I/O and server process checks, and console key input for
+confirmation. It has not been compiled or run on Windows. It needs only the
+standard library and kernel32, so the GNU target is sufficient. Other non-Unix
+platforms fail explicitly rather than running without protection.
 
 ## Build and checks
 
@@ -19,13 +23,10 @@ cargo build --locked --release
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
-python3 -I -B tests/test_stage_native.py
 cargo audit
 ```
 
-The compatibility tests also require Bash, jq and the POSIX cksum utility. Package
-staging tests require Python 3.11 or newer. These are development/reference-test
-dependencies, not native runtime dependencies.
+The state tests also require the POSIX cksum utility, a test-only dependency.
 Install cargo-audit separately before running `sh scripts/check-rust.sh`; the
 script does not install or silently skip missing tools. The workflow will remain
 inactive until eligible isolated self-hosted runners are configured. There is no
@@ -35,35 +36,17 @@ See [Rust practices](rust-practices.md) for error, unsafe, MSRV and dependency
 review policy. Tests using mock sockets and PTYs do not establish real Herdr
 integration or Windows support.
 
-## Isolated candidate package
+## Live testing
 
-After a successful release build, Python 3.11 or newer can create a local package:
-
-```sh
-python3 scripts/stage-native.py \
-  --binary target/release/last-pane-guard \
-  --output target/native-candidate
-```
-
-The script verifies the executable's version and produces a host-specific
-manifest, executable, license and checksum metadata. It neither installs nor
-publishes the plugin. Repeating it with identical inputs is a no-op; a differing
-existing destination is rejected. Choose a fresh destination for a changed build.
-
-Do not link the candidate into an existing installation to test it. Plugin
-registration is user-wide across sessions. Live testing requires a verified
-isolated configuration/registry and an owned disposable server. Never point
-experimental hooks at a production state directory. Linking does not build.
-
-Public installation helpers and real release assets are separate from this
-local staging step. A staged package is not evidence that a GitHub installation
-or upgrade works. The root manifest switches only after those paths are tested.
+Plugin registration is user-wide across sessions. Live testing requires a
+verified isolated configuration/registry and an owned disposable server. Never
+point experimental hooks at a production state directory.
 
 ## Runtime safety and compatibility
 
 - One native process handles refresh, event or confirmation; no daemon is added.
-- The Unix state directory key is the same POSIX checksum and byte length as the
-  Bash version. State version 1, inode strings, recovery claims and directory locks
+- The Unix state directory key is the same POSIX checksum and byte length as
+  0.1.0. State version 1, inode strings, recovery claims and directory locks
   remain compatible, including unknown state fields.
 - Missing snapshots are retained for pending exit hooks. Only an authoritative
   matching object-not-found response proves disappearance. Transport, parsing,
