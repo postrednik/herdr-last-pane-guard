@@ -60,6 +60,9 @@ impl Drop for Handlers {
 }
 
 #[cfg(not(unix))]
-pub fn install() -> Result<()> {
-    Ok(())
+pub struct Handlers;
+
+#[cfg(not(unix))]
+pub fn install() -> Result<Handlers> {
+    Ok(Handlers)
 }
