@@ -193,41 +193,28 @@ fn posix_checksum_matches_legacy_utility() {
 }
 
 #[test]
-fn bash_and_rust_share_state_and_lock_contract() {
-    let (temp, store) = setup();
-    let project = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut command = Command::new("/bin/bash");
-    command.args(["-c", ". \"$1/bin/common.sh\"; lpg_init && lpg_lock && lpg_prepare_state && lpg_state '.extension = {legacy:true} | .handled.old = null | .claims[\"workspace:old\"] = false'", "migration-test"])
-        .arg(project)
-        .env("HERDR_BIN_PATH", project.join("tests/mock-herdr.sh"))
-        .env("HERDR_SOCKET_PATH", &store.socket)
-        .env("HERDR_PLUGIN_STATE_DIR", temp.path().join("state"))
-        .env("HERDR_PLUGIN_CONFIG_DIR", temp.path().join("config"));
-    let output = command.output().unwrap();
-    assert!(
-        output.status.success(),
-        "legacy fixture setup failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+fn legacy_bash_state_upgrades_without_losing_recovery_data() {
+    let (_temp, store) = setup();
+    // Captured from the v0.1.0 Bash implementation; endpoint identity is templated.
+    let legacy = include_str!("legacy-state-v0.1.0.json")
+        .replace("@SOCKET@", store.socket.to_str().unwrap())
+        .replace("@GENERATION@", &store.generation);
+    fs::write(store.state_path(), &legacy).unwrap();
     {
         let _lock = store.lock().unwrap();
         let mut state = store.prepare().unwrap();
         assert_eq!(state["extension"], json!({"legacy":true}));
         assert!(state["handled"].as_object().unwrap().contains_key("old"));
+        assert_eq!(state["handled"]["p1"]["confirmed"], false);
         assert_eq!(state["claims"]["workspace:old"], false);
+        assert_eq!(state["restored"]["p2"], 1_792_239_005);
+        assert_eq!(state["closed"]["tabs"]["t9"], true);
         state["native"] = json!(true);
         store.save(&state).unwrap();
     }
-    let state: serde_json::Value =
+    let mut expected: serde_json::Value = serde_json::from_str(&legacy).unwrap();
+    expected["native"] = json!(true);
+    let saved: serde_json::Value =
         serde_json::from_slice(&fs::read(store.state_path()).unwrap()).unwrap();
-    assert_eq!(state["native"], true);
-    let output = Command::new("jq")
-        .args([
-            "-e",
-            ".native == true and .extension.legacy == true and .version == 1",
-        ])
-        .arg(store.state_path())
-        .output()
-        .unwrap();
-    assert!(output.status.success());
+    assert_eq!(saved, expected);
 }

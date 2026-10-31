@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "socket": "@SOCKET@",
+  "generation": "@GENERATION@",
+  "workspaces": {},
+  "tabs": {},
+  "panes": {},
+  "handled": {
+    "old": null,
+    "p1": {
+      "status": "restored",
+      "kind": "tab",
+      "id": "t2",
+      "pane_id": "p2",
+      "workspace_id": "w1",
+      "tab_id": "t2",
+      "label": "docs",
+      "confirmed": false
+    }
+  },
+  "claims": {
+    "workspace:old": false
+  },
+  "restored": {
+    "p2": 1792239005
+  },
+  "closed": {
+    "workspaces": {},
+    "tabs": {
+      "t9": true
+    },
+    "panes": {}
+  },
+  "extension": {
+    "legacy": true
+  }
+}
