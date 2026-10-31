@@ -11,6 +11,8 @@ use std::os::unix::{ffi::OsStrExt, fs::DirBuilderExt, fs::MetadataExt, fs::OpenO
 
 static TEMP_ID: AtomicU64 = AtomicU64::new(0);
 const MAX_STATE_BYTES: u64 = 64 * 1024 * 1024;
+#[cfg_attr(not(windows), allow(dead_code))]
+const MAX_MARKER_BYTES: u64 = 64;
 
 /// POSIX cksum includes the input length, unlike the usual CRC-32 checksum.
 pub fn session_key(bytes: &[u8]) -> String {
@@ -46,12 +48,56 @@ pub fn generation(socket: &Path) -> Result<String> {
             Err(error) => Err(error.into()),
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        let mut bytes = Vec::new();
+        match File::open(socket) {
+            Ok(file) => file.take(MAX_MARKER_BYTES + 1).read_to_end(&mut bytes)?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(Error::Stopped)
+            }
+            Err(error) => return Err(error.into()),
+        };
+        marker_generation(&bytes).ok_or(Error::Invalid("invalid Herdr endpoint marker"))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = socket;
         Err(Error::Invalid(
             "native transport is not implemented on this platform",
         ))
+    }
+}
+
+/// A Windows endpoint marker holds `PID:UNIX_EPOCH_NANOS` of the Herdr server.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn marker_generation(bytes: &[u8]) -> Option<String> {
+    if bytes.len() as u64 > MAX_MARKER_BYTES {
+        return None;
+    }
+    let text = std::str::from_utf8(bytes).ok()?.trim_ascii();
+    marker_pid(text).map(|_| text.to_owned())
+}
+
+/// Server process ID from a canonical Windows marker generation.
+pub(crate) fn marker_pid(generation: &str) -> Option<u32> {
+    let (pid, started) = generation.split_once(':')?;
+    (canonical::<u32>(pid) && canonical::<u128>(started)).then(|| pid.parse().ok())?
+}
+
+fn canonical<T: std::str::FromStr + ToString>(value: &str) -> bool {
+    value
+        .parse::<T>()
+        .ok()
+        .is_some_and(|number| number.to_string() == value)
+}
+
+/// Unix generations are socket inode numbers; Windows uses the endpoint marker.
+fn valid_generation(value: &str) -> bool {
+    if cfg!(windows) {
+        marker_pid(value).is_some()
+    } else {
+        canonical::<u64>(value)
     }
 }
 
@@ -249,13 +295,7 @@ impl Store {
                 "session key collision; refusing another session state",
             ));
         }
-        let valid_generation = state["generation"].as_str().is_some_and(|value| {
-            value
-                .parse::<u64>()
-                .ok()
-                .is_some_and(|inode| inode.to_string() == value)
-        });
-        if !valid_generation {
+        if !state["generation"].as_str().is_some_and(valid_generation) {
             return Err(Error::Invalid(
                 "invalid state generation; refusing to overwrite it",
             ));
@@ -342,6 +382,31 @@ mod tests {
         assert_eq!(session_key(b""), "4294967295-0");
         assert_eq!(session_key(b"abc"), "1219131554-3");
         assert_ne!(session_key(b"abc"), session_key(b"abc\n"));
+    }
+
+    #[test]
+    fn windows_marker_generations_are_canonical() {
+        assert_eq!(
+            marker_generation(b"4242:1792239005093000000\r\n").as_deref(),
+            Some("4242:1792239005093000000")
+        );
+        assert_eq!(marker_pid("4242:1"), Some(4242));
+        for invalid in [
+            &b""[..],
+            b"4242",
+            b"4242:",
+            b":1",
+            b"04242:1",
+            b"4242:01",
+            b"-1:1",
+            b"4294967296:1",
+            b"4242:1:2",
+            b"4242 :1",
+            b"\xff:1",
+        ] {
+            assert_eq!(marker_generation(invalid), None, "{invalid:?}");
+        }
+        assert_eq!(marker_generation(&[b'1'; 65]), None);
     }
 
     #[cfg(unix)]

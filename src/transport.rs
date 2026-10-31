@@ -1,19 +1,19 @@
 use crate::{Error, Result};
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::time::Duration;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::time::Instant;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const MAX_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 static NEXT_REQUEST: AtomicU64 = AtomicU64::new(1);
 
 /// One-shot IPC requests bound to an observed server generation.
@@ -39,7 +39,7 @@ impl Client {
 
     /// Return the result from one validated response on a fresh connection.
     /// A timeout, interruption or disconnect does not prove a mutation was not applied.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub fn call(&self, method: &str, params: Value) -> Result<Value> {
         crate::check_interrupted()?;
         let deadline = Instant::now()
@@ -56,17 +56,20 @@ impl Client {
         .map_err(|_| Error::Invalid("cannot encode API request"))?;
         request.push(b'\n');
         self.check_generation()?;
+        #[cfg(unix)]
         let mut stream = unix::connect(&self.socket, deadline)?;
+        #[cfg(windows)]
+        let mut stream = pipe::connect(&self.socket, &self.generation, deadline)?;
         // Revalidate after connect and before sending even the first request byte.
         self.check_generation()?;
-        unix::write_request(&mut stream, &request, deadline)?;
-        let response = unix::read_response(&mut stream, deadline, MAX_RESPONSE_BYTES)?;
+        platform::write_request(&mut stream, &request, deadline)?;
+        let response = platform::read_response(&mut stream, deadline, MAX_RESPONSE_BYTES)?;
         let result = decode_response(&response, &id);
-        unix::remaining(deadline)?;
+        remaining(deadline)?;
         result
     }
 
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn call(&self, _method: &str, _params: Value) -> Result<Value> {
         let _ = (&self.socket, &self.generation, self.timeout);
         Err(std::io::Error::new(
@@ -76,7 +79,7 @@ impl Client {
         .into())
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     fn check_generation(&self) -> Result<()> {
         if crate::state::generation(&self.socket)? != self.generation {
             return Err(Error::Stale);
@@ -85,7 +88,7 @@ impl Client {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[derive(Deserialize)]
 struct Response {
     id: String,
@@ -95,20 +98,20 @@ struct Response {
     error: Option<ApiError>,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[derive(Deserialize)]
 struct ApiError {
     code: String,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn present_result<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> std::result::Result<Option<Value>, D::Error> {
     Value::deserialize(deserializer).map(Some)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn present_error<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> std::result::Result<Option<ApiError>, D::Error> {
@@ -130,7 +133,29 @@ fn present_error<'de, D: serde::Deserializer<'de>>(
     deserializer.deserialize_map(ObjectError)
 }
 
+#[cfg(windows)]
+use pipe as platform;
 #[cfg(unix)]
+use unix as platform;
+
+#[cfg(any(unix, windows))]
+fn remaining(deadline: Instant) -> Result<Duration> {
+    crate::check_interrupted()?;
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        Err(Error::Timeout)
+    } else {
+        Ok(remaining)
+    }
+}
+
+/// Herdr names a Windows pipe by prefixing the lossy endpoint marker path.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn pipe_name(socket: &std::path::Path) -> String {
+    format!(r"\\.\pipe\{}", socket.to_string_lossy())
+}
+
+#[cfg(any(unix, windows))]
 fn decode_response(bytes: &[u8], id: &str) -> Result<Value> {
     if bytes.iter().find(|byte| !byte.is_ascii_whitespace()) != Some(&b'{') {
         return Err(Error::Invalid("API response must be an object"));
@@ -157,16 +182,6 @@ mod unix {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::net::UnixStream;
     use std::path::Path;
-
-    pub(super) fn remaining(deadline: Instant) -> Result<Duration> {
-        crate::check_interrupted()?;
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            Err(Error::Timeout)
-        } else {
-            Ok(remaining)
-        }
-    }
 
     fn ready(stream: &UnixStream, events: libc::c_short, deadline: Instant) -> Result<()> {
         loop {
@@ -358,6 +373,265 @@ mod unix {
     }
 }
 
+/// Windows named-pipe client. Herdr exposes the API as a pipe named after the
+/// endpoint marker path, and the marker records the owning server process.
+#[cfg(windows)]
+mod pipe {
+    use super::*;
+    use std::ffi::c_void;
+    use std::fs::{File, OpenOptions};
+    use std::io;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
+    use std::path::Path;
+
+    const FILE_FLAG_OVERLAPPED: u32 = 0x4000_0000;
+    // Never allow the server to impersonate this client beyond identification.
+    const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+    const ERROR_BROKEN_PIPE: i32 = 109;
+    const ERROR_PIPE_BUSY: i32 = 231;
+    const ERROR_MORE_DATA: i32 = 234;
+    const ERROR_IO_PENDING: i32 = 997;
+    const WAIT_OBJECT_0: u32 = 0;
+    const WAIT_TIMEOUT: u32 = 258;
+
+    // Fields other than the event are owned by the kernel during an operation.
+    #[allow(dead_code)]
+    #[repr(C)]
+    struct Overlapped {
+        internal: usize,
+        internal_high: usize,
+        offset: u32,
+        offset_high: u32,
+        event: RawHandle,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateEventW(
+            attributes: *const c_void,
+            manual_reset: i32,
+            initial_state: i32,
+            name: *const u16,
+        ) -> RawHandle;
+        fn ReadFile(
+            file: RawHandle,
+            buffer: *mut u8,
+            length: u32,
+            transferred: *mut u32,
+            overlapped: *mut Overlapped,
+        ) -> i32;
+        fn WriteFile(
+            file: RawHandle,
+            buffer: *const u8,
+            length: u32,
+            transferred: *mut u32,
+            overlapped: *mut Overlapped,
+        ) -> i32;
+        fn GetOverlappedResult(
+            file: RawHandle,
+            overlapped: *mut Overlapped,
+            transferred: *mut u32,
+            wait: i32,
+        ) -> i32;
+        fn CancelIoEx(file: RawHandle, overlapped: *mut Overlapped) -> i32;
+        fn WaitForSingleObject(handle: RawHandle, milliseconds: u32) -> u32;
+        fn GetNamedPipeServerProcessId(pipe: RawHandle, process_id: *mut u32) -> i32;
+    }
+
+    pub(super) fn connect(socket: &Path, generation: &str, deadline: Instant) -> Result<File> {
+        let expected = crate::state::marker_pid(generation)
+            .ok_or(Error::Invalid("invalid Herdr endpoint marker"))?;
+        let name = pipe_name(socket);
+        loop {
+            remaining(deadline)?;
+            let opened = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .custom_flags(FILE_FLAG_OVERLAPPED)
+                .security_qos_flags(SECURITY_IDENTIFICATION)
+                .open(&name);
+            match opened {
+                Ok(file) => {
+                    let mut server = 0_u32;
+                    // SAFETY: the handle is live and server is writable storage for one u32.
+                    if unsafe { GetNamedPipeServerProcessId(file.as_raw_handle(), &mut server) }
+                        == 0
+                    {
+                        return Err(io::Error::last_os_error().into());
+                    }
+                    // A pipe served by another process is not the recorded Herdr server.
+                    if server != expected {
+                        return Err(Error::Stale);
+                    }
+                    return Ok(file);
+                }
+                Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                    // All instances are busy; nothing was sent, so a new attempt is safe.
+                    std::thread::sleep(remaining(deadline)?.min(Duration::from_millis(10)));
+                }
+                Err(error) => {
+                    return Err(match std::fs::metadata(socket) {
+                        Err(missing) if missing.kind() == io::ErrorKind::NotFound => Error::Stopped,
+                        _ => Error::Io(error),
+                    })
+                }
+            }
+        }
+    }
+
+    enum Buffer<'a> {
+        Read(&'a mut [u8]),
+        Write(&'a [u8]),
+    }
+
+    /// Run one overlapped transfer. Kernel use of the buffer and OVERLAPPED storage
+    /// always ends before return; cancellation waits for the aborted operation.
+    fn transfer(file: &File, buffer: Buffer<'_>, deadline: Instant) -> Result<usize> {
+        let handle = file.as_raw_handle();
+        // SAFETY: null attributes and name request an unnamed manual-reset event.
+        let raw = unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) };
+        if raw.is_null() {
+            return Err(io::Error::last_os_error().into());
+        }
+        // SAFETY: raw is a new event handle and is owned exactly once.
+        let event = unsafe { OwnedHandle::from_raw_handle(raw) };
+        let mut overlapped = Overlapped {
+            internal: 0,
+            internal_high: 0,
+            offset: 0,
+            offset_high: 0,
+            event: event.as_raw_handle(),
+        };
+        let reading = matches!(buffer, Buffer::Read(_));
+        let started = match buffer {
+            Buffer::Read(bytes) => {
+                let length = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+                // SAFETY: bytes and overlapped outlive the operation, see completion below.
+                unsafe {
+                    ReadFile(
+                        handle,
+                        bytes.as_mut_ptr(),
+                        length,
+                        std::ptr::null_mut(),
+                        &mut overlapped,
+                    )
+                }
+            }
+            Buffer::Write(bytes) => {
+                let length = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+                // SAFETY: bytes and overlapped outlive the operation, see completion below.
+                unsafe {
+                    WriteFile(
+                        handle,
+                        bytes.as_ptr(),
+                        length,
+                        std::ptr::null_mut(),
+                        &mut overlapped,
+                    )
+                }
+            }
+        };
+        if started == 0 {
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(ERROR_IO_PENDING) => wait(handle, &event, &mut overlapped, deadline)?,
+                Some(ERROR_MORE_DATA) => (),
+                Some(ERROR_BROKEN_PIPE) if reading => return Ok(0),
+                _ => return Err(error.into()),
+            }
+        }
+        let mut transferred = 0_u32;
+        // SAFETY: the operation on this handle and storage has completed.
+        if unsafe { GetOverlappedResult(handle, &mut overlapped, &mut transferred, 0) } == 0 {
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(ERROR_MORE_DATA) => (),
+                Some(ERROR_BROKEN_PIPE) if reading => return Ok(0),
+                _ => return Err(error.into()),
+            }
+        }
+        usize::try_from(transferred).map_err(|_| Error::Invalid("invalid pipe transfer count"))
+    }
+
+    fn wait(
+        handle: RawHandle,
+        event: &OwnedHandle,
+        overlapped: &mut Overlapped,
+        deadline: Instant,
+    ) -> Result<()> {
+        loop {
+            let left = match remaining(deadline) {
+                Ok(left) => left,
+                Err(error) => {
+                    cancel(handle, overlapped);
+                    return Err(error);
+                }
+            };
+            // Short slices keep deadline and interruption checks responsive.
+            let millis = u32::try_from(left.as_millis().clamp(1, 100)).unwrap_or(100);
+            // SAFETY: event is a live handle owned by the caller.
+            match unsafe { WaitForSingleObject(event.as_raw_handle(), millis) } {
+                WAIT_OBJECT_0 => return Ok(()),
+                WAIT_TIMEOUT => (),
+                _ => {
+                    let error = io::Error::last_os_error();
+                    cancel(handle, overlapped);
+                    return Err(error.into());
+                }
+            }
+        }
+    }
+
+    /// Cancel one pending operation and wait until the kernel releases its storage.
+    /// This is not hard real-time: completion of the cancellation is awaited.
+    fn cancel(handle: RawHandle, overlapped: &mut Overlapped) {
+        let mut transferred = 0_u32;
+        // SAFETY: targets only this pending operation; a completed one is unaffected.
+        unsafe { CancelIoEx(handle, overlapped) };
+        // SAFETY: blocks until this operation completes, so storage stays valid.
+        unsafe { GetOverlappedResult(handle, overlapped, &mut transferred, 1) };
+    }
+
+    pub(super) fn write_request(
+        file: &mut File,
+        mut request: &[u8],
+        deadline: Instant,
+    ) -> Result<()> {
+        while !request.is_empty() {
+            match transfer(file, Buffer::Write(request), deadline)? {
+                0 => return Err(io::Error::from(io::ErrorKind::WriteZero).into()),
+                count => request = &request[count..],
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn read_response(
+        file: &mut File,
+        deadline: Instant,
+        limit: usize,
+    ) -> Result<Vec<u8>> {
+        let mut response = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        loop {
+            let count = transfer(file, Buffer::Read(&mut buffer), deadline)?;
+            if count == 0 {
+                return Err(Error::Invalid("API response ended before newline"));
+            }
+            let newline = buffer[..count].iter().position(|byte| *byte == b'\n');
+            let end = newline.unwrap_or(count);
+            if response.len() + end > limit {
+                return Err(Error::Invalid("API response exceeds size limit"));
+            }
+            response.extend_from_slice(&buffer[..end]);
+            if newline.is_some() {
+                return Ok(response);
+            }
+        }
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -434,6 +708,12 @@ mod tests {
             .unwrap();
         assert_eq!(result, json!({"ok": true}));
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn windows_pipe_name_prefixes_lossy_marker_path() {
+        let marker = std::path::Path::new(r"C:\Users\a b\é\herdr.sock");
+        assert_eq!(pipe_name(marker), r"\\.\pipe\C:\Users\a b\é\herdr.sock");
     }
 
     #[test]
@@ -644,7 +924,7 @@ mod tests {
         let result = unix::write_request(&mut sender, &request, deadline);
         assert!(matches!(result, Err(Error::Timeout)));
         assert!(started.elapsed() < Duration::from_secs(1));
-        assert!(matches!(unix::remaining(deadline), Err(Error::Timeout)));
+        assert!(matches!(remaining(deadline), Err(Error::Timeout)));
         // Some bytes must have been sent before the buffer filled and the deadline expired.
         let mut byte = [0];
         assert_eq!(receiver.read(&mut byte).unwrap(), 1);

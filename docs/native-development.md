@@ -2,8 +2,11 @@
 
 The Rust executable is an unreleased candidate. The root plugin manifest still
 runs the Bash implementation; building Rust does not replace an installed plugin.
-Native Windows transport is not implemented yet. The non-Unix entrypoint fails
-explicitly rather than silently running without protection.
+Windows source support is present but unverified: a named-pipe client with
+overlapped I/O and server process checks, and console key input for confirmation.
+It has not been compiled or run on Windows, and the plugin does not declare Windows.
+It needs only the standard library and kernel32, so the GNU target is sufficient.
+Other non-Unix platforms fail explicitly rather than running without protection.
 
 ## Build and checks
 

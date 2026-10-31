@@ -568,7 +568,60 @@ fn read_key() -> Result<Option<u8>> {
     }
 }
 
-#[cfg(not(unix))]
+/// Read one key from a console without line buffering or echo, restoring the mode.
+/// Noninteractive input is read unchanged. Forced termination cannot restore it.
+#[cfg(windows)]
+fn read_key() -> Result<Option<u8>> {
+    use std::io::Read;
+    use std::os::windows::io::{AsRawHandle, RawHandle};
+
+    const ENABLE_LINE_INPUT: u32 = 0x0002;
+    const ENABLE_ECHO_INPUT: u32 = 0x0004;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetConsoleMode(console: RawHandle, mode: *mut u32) -> i32;
+        fn SetConsoleMode(console: RawHandle, mode: u32) -> i32;
+    }
+
+    struct Console(RawHandle, Option<u32>);
+    impl Drop for Console {
+        fn drop(&mut self) {
+            if let Some(saved) = self.1 {
+                // SAFETY: the handle is standard input, still open for this process.
+                if unsafe { SetConsoleMode(self.0, saved) } == 0 {
+                    log("could not restore terminal mode");
+                }
+            }
+        }
+    }
+
+    let stdin = std::io::stdin();
+    let mut console = Console(stdin.as_raw_handle(), None);
+    let mut saved = 0_u32;
+    // SAFETY: saved is writable storage for one u32; failure means not a console.
+    if unsafe { GetConsoleMode(console.0, &mut saved) } != 0 {
+        // SAFETY: the mode is the saved console mode with line input and echo removed.
+        if unsafe { SetConsoleMode(console.0, saved & !(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT)) }
+            == 0
+        {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        console.1 = Some(saved);
+    }
+    let mut byte = [0_u8; 1];
+    loop {
+        crate::check_interrupted()?;
+        match stdin.lock().read(&mut byte) {
+            Ok(0) => return Ok(None),
+            Ok(_) => return Ok(Some(byte[0])),
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => (),
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn read_key() -> Result<Option<u8>> {
     Err(Error::Invalid(
         "native terminal input is not implemented on this platform",
